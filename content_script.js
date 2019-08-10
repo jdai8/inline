@@ -4,7 +4,7 @@ chrome.storage.local.get({ mappings: [] }, data => {
   mappings = new Map(data.mappings);
 });
 
-const REGEX = /:(.+):\s+/;
+const REGEX = /:([^:\s]+):/g;
 
 window.onload = function() {
   document.body.addEventListener('input', ie => {
@@ -13,34 +13,31 @@ window.onload = function() {
     console.log(ie.target.selectionStart, ie.target.selectionEnd);
     console.log(ie.target.innerText);
     console.log(ie.target.value);
-
+1
     const { target } = ie;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
-      const match = target.value.match(REGEX);
+      const match = Array.from(target.value.matchAll(REGEX)).find(m => mappings.get(m[1]));
       if (match) {
         const [full, word] = match;
-        if (mappings.get(word)) {
-          const replacement = mappings.get(word) + ' ';
-          target.setRangeText(replacement, match.index, match.index + full.length, 'end');
-        }
+        target.setRangeText(mappings.get(word), match.index, match.index + full.length, 'end');
       }
     }
     else if (target.isContentEditable) {
-      const match = target.innerText.match(REGEX);
       const selection = window.getSelection();
-      if (match && mappings.get(match[1]) &&
-          selection.type === 'Caret' && selection.anchorNode.nodeName === '#text') {
+      if (selection.type === 'Caret' && selection.anchorNode.nodeName === '#text') {
+        const match = Array.from(target.innerText.matchAll(REGEX)).find(m => mappings.get(m[1]));
+        if (match) {
+          const range = document.createRange();
+          range.setStart(selection.anchorNode, match.index);
+          range.setEnd(selection.focusNode, match.index + match[0].length);
+          selection.removeAllRanges();
+          selection.addRange(range);
 
-        const range = document.createRange();
-        range.setStart(selection.anchorNode, match.index);
-        range.setEnd(selection.focusNode, match.index + match[0].length);
-        selection.removeAllRanges();
-        selection.addRange(range);
-
-        // messenger.com handles spaces weirdly
-        for (const chunk of mappings.get(match[1]).split(' ')) {
-          document.execCommand('insertText', false, chunk);
-          document.execCommand('insertText', false, ' ');
+          // messenger.com handles spaces weirdly
+          for (const chunk of mappings.get(match[1]).split(' ')) {
+            document.execCommand('insertText', false, chunk);
+            document.execCommand('insertText', false, ' ');
+          }
         }
       }
     }
